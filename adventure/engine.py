@@ -180,10 +180,13 @@ class GameEngine():
         
         self.display_text(self.game_desc.opening_exposition)
         
+        last_context = None
+        
         while not self.__quitting:
             self.display_text("What do you do?")
             cmd_match, cmd = parser.parse_command(
-                self.get_response(default='look around')
+                self.get_response(default='look around'),
+                last_context
             )
             
             if cmd_match != Match.NoMatch:
@@ -195,6 +198,12 @@ class GameEngine():
                 obj_lookup.update(enumerate(cmd.args))
                 
                 act_on = obj_lookup[cmd.cmd_def.target]
+                
+                if isinstance(act_on, GameItem):
+                    last_context = act_on
+                else:
+                    last_context = None
+                
                 if not hasattr(act_on, cmd.cmd_def.func):
                     self.display_text(f"You can't {cmd.verb} that")
                 else:

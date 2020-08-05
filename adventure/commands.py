@@ -3,7 +3,7 @@ import typing as typ
 from collections import namedtuple
 from typing import Optional
 
-from .base import GameEntity, Player
+from .base import GameEntity, Player, GameItem
 from .constants import SELF_WORDS, STOP_WORDS
 from .enums import Match
 
@@ -19,6 +19,14 @@ KNOWN_COMMANDS = [
         examples = ['look around', 'look in bag']
     ),
     CmdDef(
+        desc = "Look at / examine a thing",
+        verbs = ['look at', 'look inside', 'look in', 'examine', 'scrutinize'],
+        num_objs = 1,
+        func = 'on_look',
+        target = 0,
+        examples = ['look at the tin can']
+    ),
+    CmdDef(
         desc = "Take something and add it to your inventory",
         verbs = ['take', 'get', 'pick up', 'acquire', 'grab', 'snatch'], 
         num_objs = 1,
@@ -26,6 +34,14 @@ KNOWN_COMMANDS = [
         target = 0,
         examples = ['take sword', 'pick up coins']
     ),
+    # CmdDef(
+    #     desc = "Take something from a container and add it to your inventory",
+    #     verbs = ['take', 'get', 'snatch', 'remove', 'steal'],
+    #     num_objs = 2,
+    #     func = 'on_take_from',
+    #     target = 1,
+    #     examples = []
+    # ),
     CmdDef(
         desc = "Discard an item",
         verbs = ['drop', 'get rid of', 'lose', 'discard', 'ditch'],
@@ -89,6 +105,22 @@ KNOWN_COMMANDS = [
         func = 'on_taste',
         target = 0,
         examples = ['taste your lint', 'taste the door']
+    ),
+    CmdDef(
+        desc = "Unlock a locked thing",
+        verbs = ['unlock', 'force open'],
+        num_objs = 2,
+        func = 'on_unlock',
+        target = 0,
+        examples = ['unlock the door with the metal key', 'force open the chest with the prybar']
+    ),
+    CmdDef(
+        desc = "Enter a room",
+        verbs = ['enter', 'penetrate', 'run in to', 'run into', 'sally forth towards', 'go into', 'go in to', 'go to'],
+        num_objs = 1,
+        func = 'on_enter',
+        target = 0,
+        examples = ['enter the dining room', 'run in to the door', 'penetrate the arboretum']
     )
 ]
 
@@ -113,7 +145,13 @@ class CommandParser():
     def _match_obj(self, desc: str, look_in: GameEntity) -> typ.Tuple[Match, typ.List[GameEntity]]:
         matches = []
         
+        if not hasattr(look_in, "items"):
+            return (Match.NoMatch, [])
+        
         for item in look_in.items:
+            if item.is_secret:
+                continue
+            
             m = item.matches_name(desc)
             if m == Match.FullWithDetail:
                 return (m, [item])
@@ -126,9 +164,16 @@ class CommandParser():
         
         return (best, matches)
     
-    def find_object(self, desc: str) -> typ.Tuple[Match, typ.List[GameEntity]]:
+    def find_object(self, desc: str, addl_context_obj: Optional[GameItem]) -> typ.Tuple[Match, typ.List[GameEntity]]:
         m1, m1_objs = self._match_obj(desc, self.player.inventory)
         m2, m2_objs = self._match_obj(desc, self.player.room)
+        
+        if addl_context_obj:
+            if desc.lower().strip() in ('it', 'that'):
+                return Match.Full, [addl_context_obj]
+            m3, m3_objs = self._match_obj(desc, addl_context_obj)
+        else:
+            m3, m3_objs = Match.NoMatch, []
         
         for sw in STOP_WORDS:
             desc = re.sub(" +", " ", re.sub("(^| )" + sw + "($| )", " ", desc))
@@ -136,13 +181,18 @@ class CommandParser():
         if desc.strip().lower() in SELF_WORDS:
             return Match.Full, [self.player]
         
+        if m3 > m1:
+            m1, m1_objs = m3, m3_objs
+        elif m3 > m2:
+            m2, m2_objs = m3, m3_objs
+        
         if m1 > m2:
             return m1, m1_objs
         elif m2 > m1:
             return m2, m2_objs
         return m1, m1_objs + m2_objs
         
-    def parse_command(self, cmd: str) -> typ.Tuple[Match, typ.List[CommandMatch]]:
+    def parse_command(self, cmd: str, addl_context_obj: Optional[GameItem]) -> typ.Tuple[Match, typ.List[CommandMatch]]:
         cmd = cmd.lower().strip()
         
         matches = {
@@ -161,15 +211,34 @@ class CommandParser():
                     matches[Match.Full].append(CommandMatch(cmd_def, verb, []))
                     
                 elif cmd_def.num_objs == 1 and cmd.startswith(verb + ' '):
-                    obj_match, objs = self.find_object(cmd[(len(verb)+1):])
+                    obj_match, objs = self.find_object(cmd[(len(verb)+1):], addl_context_obj)
                     
                     if obj_match != Match.NoMatch:
                         for obj in objs:
                             matches[min(Match.Full, obj_match)].append(CommandMatch(cmd_def, verb, [obj]))
                 elif cmd_def.num_objs > 1 and cmd.startswith(verb + ' '):
-                    print("Not supported yet")
-                        
-        if matches[Match.Full]:
-            return Match.Full, matches[Match.Full][0]
+                    rest = cmd[(len(verb) + 1):]
+                    for sw in STOP_WORDS:
+                        args = re.split("(^| )"+sw+"($| )", rest)
+                        for i in range(1,len(args)):
+                            m1, m1_list = self._match_obj(' '.join(args[:i]), addl_context_obj)
+                            m2, m2_list = self._match_obj(' '.join(args[i:]), addl_context_obj)
+                            
+                            m = min(m1, m2)
+                            
+                            if m > Match.NoMatch:
+                                matches[m].append(CommandMatch(cmd_def, verb, [m1_list[0], m2_list[0]]))
+                                
                 
-        return Match.NoMatch, []
+                            
+            
+        best_match = Match.NoMatch, None
+        
+        if matches[Match.Partial]:
+            best_match = Match.Partial, matches[Match.Partial][0]
+        
+        if matches[Match.Full]:
+            best_match = Match.Full, matches[Match.Full][0]
+        
+        return best_match
+        

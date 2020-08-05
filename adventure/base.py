@@ -4,10 +4,11 @@ from typing import Optional
 
 from . import constants, materials, phrasing
 from .enums import Match
-from .utils import select_one
+from .utils import select_one, is_rough_match
 
 Player = "adventure.base.Player"
 GameItem = "adventure.base.GameItem"
+GameRoom = "adventure.base.GameRoom"
 
 class GameEntity():
     def on_tick(self) -> typ.Optional[str]:
@@ -71,6 +72,16 @@ class GameEntity():
         """
         pass
 
+    def on_enter(self, player: Player) -> Optional[str]:
+        """Called when trying to enter the object
+
+        Args:
+            player (Player): [description]
+
+        Returns:
+            Optional[str]: [description]
+        """
+        pass
     
     def on_take(self, player: Player) -> Optional[str]:
         """Called when player tries to take/get this entity.  
@@ -153,6 +164,16 @@ class Player(GameEntity):
 
     def on_smell(self, player):
         return phrasing.foul_smelling_person(player == self)
+    
+    def move_to(self, room: GameRoom):
+        if self.room == room:
+            return "You're already there."
+        
+        self.room = room
+        if room.description:
+            return room.description
+        
+        return "You enter " + room.name + "."
 
 
 class GameItem(GameEntity):
@@ -160,6 +181,7 @@ class GameItem(GameEntity):
                  article: str, 
                  name: str,
                  is_scenery: bool = False,
+                 is_secret: bool = False,
                  material: materials.Material = materials.DEFAULT,
                  verb: str = "is",
                  combustible: typ.Optional[bool] = None,
@@ -174,12 +196,13 @@ class GameItem(GameEntity):
         self.verb = verb
         self._combustible = combustible
         self.size = size
+        self.is_secret = is_secret
         
         self.currently_in = None
     
     def possessive_or_the(self, relative_to: Player):
         item = self
-        while item.currently_in is not None:
+        while getattr(item, 'currently_in', None) is not None:
             if isinstance(item.currently_in, Player):
                 if item.currently_in == relative_to:
                     return 'your'
@@ -223,27 +246,31 @@ class GameItem(GameEntity):
         Returns:
             Match: [description]
         """
-        text = text.lower()
-        for stop_word in constants.STOP_WORDS:
-            if text.startswith(stop_word.lower() + ' '):
-                text = text[(len(stop_word)+1):]
+        match = is_rough_match(text, self.short_description)
         
-        exact_tests = [
-            ((self.material.name, self.name, self.location), Match.FullWithDetail),
-            ((self.material.name, self.name), Match.FullWithDetail),
-            ((self.name, self.location), Match.FullWithDetail),
-            ((self.name, ), Match.Full)
-        ]
+        return match
         
-        for test_elements, match_type in exact_tests:
-            target = ' '.join(x or '' for x in test_elements).lower().strip()
-            if text == target:
-                return match_type
+        # text = text.lower()
+        # for stop_word in constants.STOP_WORDS:
+        #     if text.startswith(stop_word.lower() + ' '):
+        #         text = text[(len(stop_word)+1):]
         
-        if text in self.name.lower():
-            return Match.Partial
+        # exact_tests = [
+        #     ((self.material.name, self.name, self.location), Match.FullWithDetail),
+        #     ((self.material.name, self.name), Match.FullWithDetail),
+        #     ((self.name, self.location), Match.FullWithDetail),
+        #     ((self.name, ), Match.Full)
+        # ]
         
-        return Match.NoMatch
+        # for test_elements, match_type in exact_tests:
+        #     target = ' '.join(x or '' for x in test_elements).lower().strip()
+        #     if text == target:
+        #         return match_type
+        
+        # if text in self.name.lower():
+        #     return Match.Partial
+        
+        # return Match.NoMatch
     
     def on_look(self, player: Player):
         if self.material != materials.DEFAULT:
@@ -407,10 +434,10 @@ class GameRoom(GameEntity):
         else:
             desc = "You are in " + self.name + ".  "
             
-        scenery_desc = phrasing.describe_items([x for x in self.items if x.is_scenery])
+        scenery_desc = phrasing.describe_items([x for x in self.items if x.is_scenery and not x.is_secret])
         if scenery_desc:
             desc += scenery_desc + "\n\n"
             
-        desc += phrasing.describe_items([x for x in self.items if not x.is_scenery])
+        desc += phrasing.describe_items([x for x in self.items if not x.is_scenery and not x.is_secret])
         
         return desc

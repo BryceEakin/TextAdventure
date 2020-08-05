@@ -63,10 +63,10 @@ def foul_smelling_person(is_you: bool = False):
 
 _NOTHING_HAPPENS = [
     "... Nothing happens.",
-    "(cricket)....   (cricket)....   ",
+    "(cricket).... (cricket)....   ",
     "It wasn't very effective.",
-    "Oh, sorry, was that supposed to make sense?  It didn't.",
-    "A tiny ripple moves out possibly affecting something somewhere eventually.  Just not here or now.",
+    "Oh, sorry, was that supposed to make sense? It didn't.",
+    "A tiny ripple moves out possibly affecting something somewhere eventually. Just not here or now.",
     "Yeah, that really didn't do anything"
 ]
 
