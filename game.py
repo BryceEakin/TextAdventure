@@ -30,6 +30,7 @@ starting_room = GameRoom(
 )
 
 our_game = GameDefinition(
+    "Legends of the Great Game Demo",
     starting_room = starting_room, 
     initial_inventory_items = [
         GameItem("some", "lint", size=0)

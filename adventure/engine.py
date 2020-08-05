@@ -15,6 +15,7 @@ from .enums import Match
 
 @dataclass
 class GameDefinition():
+    title: str
     starting_room: Optional[GameRoom] = None
     inventory_size: int = 3
     initial_inventory_items: typ.List[GameItem] = field(default_factory=list)
@@ -159,8 +160,13 @@ class GameEngine():
         self.__quitting = False
         self.__interface = interface
         
+        title_block = "#" * (len(self.game_desc.title) + 4)
+        self.display_text(
+            "\n  " + title_block + "\n  # " + self.game_desc.title + " #\n  " + title_block
+        )
+        
         player_name = self.get_response(
-            f'What is your name? (Default is "{self.game_desc.default_player_name}")', 
+            f'\n\nWhat is your name, brave adventurer? (Default is "{self.game_desc.default_player_name}")', 
             default=self.game_desc.default_player_name
         )
         
