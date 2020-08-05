@@ -21,7 +21,7 @@ starting_room = GameRoom(
             GameItem("a", "cell door")
         ],
         "on the floor":[
-            GameContainer("a", "rusty tin can", 3, material=materials.METAL, initial_items=[
+            GameContainer("a", "can", 3, material=materials.RUSTY_TIN, initial_items=[
                 GameItem("a", "recipe for making a lockpick"),
                 GameItem("a", "comb")
             ])
