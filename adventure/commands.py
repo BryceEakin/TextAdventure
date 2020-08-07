@@ -3,11 +3,17 @@ import typing as typ
 from collections import namedtuple
 from typing import Optional
 
-from .base import GameEntity, Player, GameItem
+#from .base import GameEntity, Player, GameItem
 from .constants import SELF_WORDS, STOP_WORDS
 from .enums import Match
 
 CmdDef = namedtuple('CmdDef', ['desc', 'verbs', 'num_objs', 'func', 'target', 'examples'])
+
+GameEntity = "GameEntity"
+Player = "Player"
+GameItem = "GameItem"
+
+PUT_IN = LOOK = TAKE = HELP = QUIT = SMELL = TASTE = DISCARD = lambda x: x
 
 KNOWN_COMMANDS = [
     CmdDef(

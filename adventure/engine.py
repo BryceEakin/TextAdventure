@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from time import sleep
 from typing import Optional
 
-from . import phrasing
+from . import phrasing, commands
 from .base import GameEntity, GameItem, GameRoom, Player
 from .commands import CommandMatch, CommandParser, get_help_string
 from .enums import Match
@@ -218,9 +218,11 @@ class GameEngine():
             else:
                 self.display_text("DEBUG: " + repr((cmd_match, cmd)))
     
+    @commands.HELP #.register_generic_handler
     def show_help(self, player):
         return get_help_string()
         
+    @commands.QUIT #.register_generic_handler
     def quit(self, player):
         if self.__interface is not None:
             choice = self.__interface.get_selection(
