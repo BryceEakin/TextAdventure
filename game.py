@@ -1,5 +1,6 @@
 from adventure.engine import GameEngine, TerminalInterface, GameDefinition
-from adventure.base import GameRoom, GameItem, GameContainer, Door
+from adventure.base import GameRoom, GameItem
+from adventure.objects import GameContainer, Door
 from adventure import materials
 from adventure.enums import Match
 
@@ -8,7 +9,7 @@ from adventure import utils
 from typing import Optional
 
 
-next_room = GameRoom(
+GameEngine.add_room("DINING_ROOM", GameRoom(
     "a dining room",
     description = "You enter the dining room. There is a long dining table. You see cobwebs on the wine glasses",
     objects = {
@@ -21,10 +22,10 @@ next_room = GameRoom(
             ])
         ],
     }
-)
+))
     
-starting_room = GameRoom(
-    "You're in a dig ",
+GameEngine.add_room("ENTRYWAY", GameRoom(
+    "You're in a ... room?",
     description = "",
     objects={
         "slightly askew against the wall":[
@@ -38,7 +39,7 @@ starting_room = GameRoom(
             GameItem("some", "cobwebs", is_scenery=True, verb='are')
         ],
         "to your right":[
-            Door("a", "cell door", is_locked=False, goes_to=next_room)
+            Door("a", "cell door", is_locked=False, goes_to='DINING_ROOM')
         ],
         "on the floor":[
             GameContainer("a", "can", 3, material=materials.RUSTY_TIN, items=[
@@ -47,13 +48,13 @@ starting_room = GameRoom(
             ])
         ]
     }
-)
+))
 
 our_game = GameDefinition(
     "Legends of the Great Game Demo",
-    starting_room = starting_room,
+    starting_room = "ENTRYWAY",
     opening_exposition = """
-    Dear {{player.name}},
+    Dear {{player.name.first}},
 
     My treasure is in the house.  Go find it.
     
@@ -71,11 +72,10 @@ our_game = GameDefinition(
     You pull open the door and step inside.  The door slams shut behind you.
     """,
     initial_inventory_items = [
-        GameItem("some", "lbint", size=0)
+        GameItem("some", "lint", size=0)
     ]
 )
 
 if __name__ == "__main__":
-    App = GameEngine(our_game)
-    App.run(TerminalInterface(0.005, 0.2))
+    GameEngine.run(our_game, TerminalInterface(0.005, 0.2))
     

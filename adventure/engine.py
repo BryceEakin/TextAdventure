@@ -9,8 +9,9 @@ from typing import Optional
 
 from . import phrasing, commands
 from .base import GameEntity, GameItem, GameRoom, Player
-from .commands import CommandMatch, CommandParser, get_help_string
 from .enums import Match
+
+from nameparser import HumanName
 
 
 @dataclass
@@ -105,11 +106,21 @@ class TerminalInterface(UserInterface):
 
 
 class GameEngine():
-    def __init__(self, game_desc: GameDefinition):
-        self.game_desc = game_desc
+    def __init__(self):
+        self.game_desc = None
         self.player = None
         self.__quitting = False
         self.__interface = None
+        
+        self.__rooms = {}
+    
+    def add_room(self, id: str, room: GameRoom):
+        self.__rooms[id] = room
+        
+    def get_room(self, id: str, silent=False):
+        if not silent:
+            return self.__rooms[id]
+        return self.__rooms.get(id, None)
     
     def display_text(self, txt):
         if self.__interface:
@@ -150,13 +161,14 @@ class GameEngine():
         
         pieces = [
             x if not (x[0] == '{' and x[-1] == '}') 
-            else try_eval(x[1:-1])
+            else str(try_eval(x[1:-1]))
             for x in pieces
         ]
         
         return ''.join(pieces)
         
-    def run(self, interface: UserInterface):
+    def run(self, game_desc: GameDefinition, interface: UserInterface):
+        self.game_desc = game_desc
         self.__quitting = False
         self.__interface = interface
         
@@ -171,12 +183,10 @@ class GameEngine():
         )
         
         self.player = Player(
-            name=player_name,
+            name=HumanName(player_name),
             initial_inventory=self.game_desc.initial_inventory_items
         )
-        self.player.room = self.game_desc.starting_room
-        
-        parser = CommandParser(self.player)
+        self.player.room = self.get_room(self.game_desc.starting_room)
         
         self.display_text(self.game_desc.opening_exposition)
         
@@ -184,45 +194,56 @@ class GameEngine():
         
         while not self.__quitting:
             self.display_text("What do you do?")
-            cmd_match, cmd = parser.parse_command(
-                self.get_response(default='look around'),
+            
+            user_response = self.get_response(default='look around')
+            
+            if user_response.lower() == 'debug':
+                print("Trying to debug....")
+                import code
+                code.interact("** DEBUGGING **", local={'player': self.player})
+                continue
+            
+            cmd_match, cmd_list = commands.Command.evaluate_command(
+                user_response,
+                self.player,
                 last_context
             )
             
-            if cmd_match != Match.NoMatch:
-                obj_lookup = {
-                    'inventory': self.player.inventory,
-                    'self': self,
-                    'room': self.player.room,
-                }
-                obj_lookup.update(enumerate(cmd.args))
-                
-                act_on = obj_lookup[cmd.cmd_def.target]
-                
-                if isinstance(act_on, GameItem):
-                    last_context = act_on
-                else:
-                    last_context = None
-                
-                if not hasattr(act_on, cmd.cmd_def.func):
-                    self.display_text(f"You can't {cmd.verb} that")
-                else:
-                    out_msg = getattr(act_on, cmd.cmd_def.func)(
-                        self.player, 
-                        *[x for i,x in enumerate(cmd.args) if i != cmd.cmd_def.target]
-                    )
-                    if out_msg:
-                        self.display_text(out_msg)
+            if cmd_match != Match.NoMatch and len(cmd_list) > 0:
+                if len(cmd_list) == 1:
+                    cmd = cmd_list[0]
+                    if 'handlers' in cmd and len(cmd['handlers']) > 0:
+                        for fn in cmd['handlers']:
+                            result = fn()
+                            if result:
+                                self.display_text(result)
+                            else:
+                                self.display_text(phrasing.nothing_happens())
                     else:
-                        self.display_text(phrasing.nothing_happens())
+                        self.display_text(f"You can't {cmd.get('verb', 'do')} that")
+                        
+                    if isinstance(cmd.get('object', None), GameItem):
+                        last_context = cmd['object']
+                    else:
+                        last_context = None
+                elif not cmd_list:
+                    self.display_text(f"That was ambiguous -- can you be more specific?  Type 'help' for examples")
+                    
+                    self.display_text(f"DEBUG: \n{cmd_match}\n{cmd_list}")
+                else:
+                    self.display_text(f"That was ambiguous -- can you be more specific?  Type 'help {cmd_list[0]['verb']}' for examples")
+                    
+                    self.display_text(f"DEBUG: \n{cmd_match}\n{cmd_list}")
+                
             else:
-                self.display_text("DEBUG: " + repr((cmd_match, cmd)))
+                self.display_text("That didn't make much sense to me.  Type 'help' if you aren't sure what you can do")
+                
+                self.display_text(f"DEBUG: \n{cmd_match}\n{cmd_list}")
     
-    @commands.HELP #.register_generic_handler
-    def show_help(self, player):
-        return get_help_string()
+    
+    def show_help(self, player, wants_help_with=None):
+        return commands.get_help_string(wants_help_with)
         
-    @commands.QUIT #.register_generic_handler
     def quit(self, player):
         if self.__interface is not None:
             choice = self.__interface.get_selection(
@@ -239,3 +260,8 @@ class GameEngine():
             return "Thanks for playing!  Later..."
             
         return "Nevermind then"
+
+GameEngine = GameEngine()
+
+commands.HELP.register_generic_handler(GameEngine.show_help)
+commands.QUIT.register_generic_handler(GameEngine.quit)
