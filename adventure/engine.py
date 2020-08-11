@@ -240,6 +240,8 @@ class GameEngine():
                 
                 self.display_text(f"DEBUG: \n{cmd_match}\n{cmd_list}")
     
+    def show_inventory(self, player):
+        return player.inventory.on_look(player)
     
     def show_help(self, player, wants_help_with=None):
         return commands.get_help_string(wants_help_with)
