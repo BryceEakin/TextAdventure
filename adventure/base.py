@@ -223,6 +223,8 @@ class GameItem(GameEntity):
             return "You can't drop a thing you don't have"
         
         player.inventory.remove(self)
+        player.inventory.used_space -= self.size
+        
         player.room.add(self, "on the floor")
         
         return f"You drop the {self.name}"

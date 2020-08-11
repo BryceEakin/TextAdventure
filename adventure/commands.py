@@ -41,6 +41,10 @@ class _CommandContext():
         self._limit_to = limit_to
     
     @property
+    def player(self):
+        return self._player
+    
+    @property
     def room(self):
         return self._player.room
     
@@ -192,9 +196,45 @@ class Command():
         if fn in _REGISTERED_GENERIC_LISTENERS[self]:
             _REGISTERED_CLASS_LISTENERS[self].remove(fn)
        
+    @staticmethod
+    def _run_search(text, context, cmd_obj, handlers, cls=None):
+        match, match_info = cmd_obj.parser.parse(text, context)
+        match_info['command'] = cmd_obj
+        
+        if match == Match.NoMatch:
+            handlers = []
+        
+        # Make the handler apply to the specific object if there is one
+        if 'object' in match_info and match_info['object'] is not None:
+            if cls and not isinstance(match_info['object'], cls):
+                return Match.NoMatch, {}
+            
+            handlers = [h.__get__(match_info['object'], match_info['object'].__class__) for h in handlers]
+        elif cls is not None:
+            return Match.NoMatch, {}
+            
+        if cls:
+            match_info['class_matched'] = cls
+            
+        # Add the command arguments to the handler if the command requires them
+        if cmd_obj.args_list:
+            if any(arg not in match_info for arg in cmd_obj.args_list):
+                handlers = []
+                match = Match.NoMatch
+                # print("Matched command, but not all args found?", cmd_obj, match_info)
+            else:
+                handlers = [functools.partial(h, *([context.player] + [match_info[k] for k in cmd_obj.args_list])) for h in handlers]
+        else:
+            handlers = [functools.partial(h, *[context.player]) for h in handlers]
+            
+        match_info['handlers'] = handlers
+        
+        return match, match_info
+       
     @staticmethod     
     def evaluate_command(text, player, current_context_obj = None):
         context = _CommandContext(player, current_context_obj=current_context_obj)
+        run_search = functools.partial(Command._run_search, text, context)
         
         while Command._DEFERRED_CLASS_REGISTERS:
             cmd, fn = Command._DEFERRED_CLASS_REGISTERS.pop()
@@ -211,55 +251,39 @@ class Command():
         
         best_match_type, best_match_list = Match.NoMatch, []
         
-        def run_search(cmd_obj, handlers, cls=None):
-            nonlocal best_match_type, best_match_list, context, text
-            match, match_info = cmd_obj.parser.parse(text, context)
-            match_info['command'] = cmd_obj
-            
-            if match == Match.NoMatch:
-                handlers = []
-            
-            # Make the handler apply to the specific object if there is one
-            if 'object' in match_info and match_info['object'] is not None:
-                if cls and not isinstance(match_info['object'], cls):
-                    return
-                
-                handlers = [h.__get__(match_info['object'], match_info['object'].__class__) for h in handlers]
-            elif cls is not None:
-                return
-                
-            # Add the command arguments to the handler if the command requires them
-            if cmd_obj.args_list:
-                if any(arg not in match_info for arg in cmd_obj.args_list):
-                    handlers = []
-                    match = Match.NoMatch
-                    # print("Matched command, but not all args found?", cmd_obj, match_info)
-                else:
-                    handlers = [functools.partial(h, *([player] + [match_info[k] for k in cmd_obj.args_list])) for h in handlers]
-            else:
-                handlers = [functools.partial(h, *[player]) for h in handlers]
-                
-            match_info['handlers'] = handlers
-            
-            if match > best_match_type:
-                best_match_type = match
-                best_match_list.clear()
-            
-            if match == best_match_type:
-                best_match_list.append(match_info)
-        
         for (cmd_obj, target_cls), handlers in Command._REGISTERED_CLASS_LISTENERS.items():
             context.reset_context(cls_limit=target_cls, exclude_objs=Command._REGISTERED_OBJECT_EXCLUSIONS[target_cls])
-            run_search(cmd_obj, handlers, target_cls)
+            match, match_info = run_search(cmd_obj, handlers, target_cls)
+            
+            if match > best_match_type:
+                best_match_type, best_match_list = match, [match_info]
+            elif match == best_match_type:
+                was_found = False
+                for idx in range(len(best_match_list)):
+                    if 'object' in best_match_list[idx] and best_match_list[idx]['object'] == match_info['object']:
+                        was_found = True
+                        if issubclass(target_cls, best_match_list[idx]['class_matched']):
+                            best_match_list[idx] = match_info
+                if not was_found:
+                    best_match_list.append(match_info)
         
         for (cmd_obj), handlers in Command._REGISTERED_GENERIC_LISTENERS.items():
             context.reset_context()
-            run_search(cmd_obj, handlers)
+            match, match_info = run_search(cmd_obj, handlers)
             
+            if match > best_match_type:
+                best_match_type, best_match_list = match, [match_info]
+            elif match == best_match_type:
+                best_match_list.append(match_info)
         
         for (cmd_obj, obj), handlers in Command._REGISTERED_OBJECT_LISTENERS.items():
             context.reset_context(limit_to = [obj])
-            run_search(cmd_obj, handlers)
+            match, match_info = run_search(cmd_obj, handlers)
+            
+            if match > best_match_type:
+                best_match_type, best_match_list = match, [match_info]
+            elif match == best_match_type:
+                best_match_list.append(match_info)
             
         if best_match_type == Match.NoMatch:
             best_match_list.clear()
