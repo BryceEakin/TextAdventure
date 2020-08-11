@@ -70,6 +70,7 @@ class Door(GameItem):
         super().__init__(article, name, is_secret=is_secret, material=material)
         self.is_locked = is_locked
         self._goes_to = goes_to
+        self.is_closed = True
         
     @property
     def goes_to(self):
@@ -82,7 +83,7 @@ class Door(GameItem):
     @property
     def short_description(self):
         desc = super().short_description
-        if self.is_locked:
+        if self.is_locked or self.is_closed:
             return desc
         
         if self.goes_to is None:
@@ -97,10 +98,13 @@ class Door(GameItem):
         
         return super().matches_name(text)
         
-    def on_unlock(self, player, key):
-
+    @commands.UNLOCK
+    def on_unlock(self, player, key=None):
         if not self.is_locked:
             return "It's not locked"
+        
+        if key is None:
+            return "You need something to unlock it with...."
         
         if key.name != 'key':
             return "You can't unlock it with that"
@@ -108,12 +112,16 @@ class Door(GameItem):
         self.is_locked = False
         return "You unlock the door with the key! It can now open."
         
+    @commands.OPEN
     def on_open(self, player, with_obj=None):
         
         where_it_goes = "...nothing" if self.goes_to is None else self.goes_to.name
         
         if self.is_secret:
-            return "What are you trying to do?"
+            return None
+        
+        if not self.is_closed:
+            return "I mean, it's already open... but sure, you totally open it.  More.  A bit."
 
         if self.is_locked and with_obj is not None and with_obj.name == 'key':
             self.is_locked = False
@@ -122,15 +130,35 @@ class Door(GameItem):
         if self.is_locked:
             return "It's locked"
         
+        self.is_closed = True
+        
         return "You opened it.  Through the door you see " + self.goes_to.name
+    
+    @commands.CLOSE
+    def on_close(self, player):
+        if self.is_secret:
+            return None
+        
+        if self.is_closed:
+            return "It's already closed."
+        
+        self.is_closed = True
+        return ""
     
     @commands.ENTER
     def on_enter(self, player):
         if self.is_secret or self.is_locked:
             return None
         
+        if self.is_locked:
+            "The door is locked -- you'll need to unlock it first"
+            
         if self.goes_to is None:
-            return "It leads nowhere.  You're still in the "
+            return "It leads nowhere.  You're still in " + player.room.name
+            
+        if self.is_closed:
+            self.is_closed = False
+            return "You open the door and step through.  " + player.move_to(self.goes_to)
         
         return player.move_to(self.goes_to)
     

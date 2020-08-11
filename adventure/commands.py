@@ -648,6 +648,14 @@ OPEN = Command(
     examples=['open the door', 'open the chest with the crowbar']
 )
 
+CLOSE = Command(
+    "Close a door or container",
+    "{verb} {object}[ with {object_arg:None}]",
+    ['close', 'slam', 'shut'],
+    args_list=['object_arg'],
+    examples=['shut the door', 'close the chest with the remote']
+)
+
 HELP = Command(
     "See game help",
     "{verb}[ with][ {string_arg:None}]",
@@ -675,6 +683,14 @@ UNLOCK = Command(
     ['unlock', 'force open', 'pry open'],
     args_list=['object_arg'],
     examples=['unlock the door with the metal key', 'force open the chest with the pry bar']
+)
+
+LOCK = Command(
+    "Lock an unlocked thing",
+    "{verb} {object}[ with {object_arg:None}]",
+    ['lock', 'seal', 'secure'],
+    args_list=['object_arg'],
+    examples=['lock the door with the skeleton key', 'seal the breach', 'secure the locker']
 )
 
 ENTER = Command(
