@@ -130,12 +130,12 @@ class Door(GameItem):
         if self.is_locked:
             return "It's locked"
         
-        self.is_closed = True
+        self.is_closed = False
         
         return "You opened it.  Through the door you see " + self.goes_to.name
     
     @commands.CLOSE
-    def on_close(self, player):
+    def on_close(self, player, with_obj=None):
         if self.is_secret:
             return None
         
@@ -143,7 +143,7 @@ class Door(GameItem):
             return "It's already closed."
         
         self.is_closed = True
-        return ""
+        return "You closed it.  Great job."
     
     @commands.ENTER
     def on_enter(self, player):
