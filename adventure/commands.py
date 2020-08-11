@@ -233,7 +233,7 @@ class Command():
                 if any(arg not in match_info for arg in cmd_obj.args_list):
                     handlers = []
                     match = Match.NoMatch
-                    print("Matched command, but not all args found?", cmd_obj, match_info)
+                    # print("Matched command, but not all args found?", cmd_obj, match_info)
                 else:
                     handlers = [functools.partial(h, *([player] + [match_info[k] for k in cmd_obj.args_list])) for h in handlers]
             else:
