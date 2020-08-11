@@ -267,3 +267,4 @@ GameEngine = GameEngine()
 
 commands.HELP.register_generic_handler(GameEngine.show_help)
 commands.QUIT.register_generic_handler(GameEngine.quit)
+commands.SHOW_INVENTORY.register_generic_handler(GameEngine.show_inventory)
